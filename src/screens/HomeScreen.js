@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { Ionicons, SimpleLineIcons } from "@expo/vector-icons";
 import Feather from "react-native-vector-icons/Feather";
+import AllProducts from "../components/AllProducts/AllProducts";
+import TopCategories from "../components/TopCategories/TopCategories";
 import { colors } from "../theme/colors";
 import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
@@ -22,7 +24,7 @@ const storeLogo = require("../../assets/store-logo.png");
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 760;
-const HEADER_HEIGHT = 61;
+const HEADER_HEIGHT = 46;
 const SLIDE_WIDTH = SCREEN_WIDTH;
 
 const slides = [
@@ -72,7 +74,7 @@ const MenuIcon = ({ icon }) => {
   return <Feather name={icon.name} size={icon.size} color={colors.black} />;
 };
 
-const HomeScreen = () => {
+const HomeScreen = ({ bottomInset = 0, onSelectProduct }) => {
   const scrollRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -141,7 +143,7 @@ const HomeScreen = () => {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroWrapper}>
@@ -195,6 +197,9 @@ const HomeScreen = () => {
             ))}
           </View>
         </View>
+
+        <TopCategories />
+        <AllProducts onSelectProduct={onSelectProduct} />
       </ScrollView>
 
       {menuOpen ? (
