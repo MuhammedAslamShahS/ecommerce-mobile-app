@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons, SimpleLineIcons } from "@expo/vector-icons";
 import Feather from "react-native-vector-icons/Feather";
-import Ionicons from "react-native-vector-icons/Ionicons";
 import { colors } from "../theme/colors";
 import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
@@ -49,9 +49,33 @@ const slides = [
   },
 ];
 
+const quickActions = [
+  { id: "about", label: "ABOUT US" },
+  { id: "stores", label: "STORES", icon: { family: "Feather", name: "map-pin", size: 18 } },
+  { id: "contact", label: "CONTACT US", icon: { family: "Feather", name: "message-square", size: 18 } },
+  { id: "account", label: "MY ACCOUNT", icon: { family: "Ionicons", name: "person-circle-outline", size: 22 } },
+  { id: "wishlist", label: "WISHLIST", icon: { family: "Feather", name: "heart", size: 18 } },
+  { id: "cart", label: "CART", icon: { family: "Feather", name: "shopping-bag", size: 18 } },
+];
+
+const menuLinks = ["NEW IN", "SALES", "PRODUCTS", "COLLECTIONS", "WEDDING", "DEALS"];
+
+const MenuIcon = ({ icon }) => {
+  if (!icon) {
+    return null;
+  }
+
+  if (icon.family === "Ionicons") {
+    return <Ionicons name={icon.name} size={icon.size} color={colors.black} />;
+  }
+
+  return <Feather name={icon.name} size={icon.size} color={colors.black} />;
+};
+
 const HomeScreen = () => {
   const scrollRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const slideCount = useMemo(() => slides.length, []);
 
   useEffect(() => {
@@ -101,8 +125,16 @@ const HomeScreen = () => {
             <Ionicons name="search-outline" size={22} color={colors.black} />
           </View>
 
-          <TouchableOpacity style={styles.menuButton} activeOpacity={0.85}>
-            <Ionicons name="menu-outline" size={26} color={colors.black} />
+          <TouchableOpacity
+            style={styles.menuButton}
+            activeOpacity={0.85}
+            onPress={() => setMenuOpen((current) => !current)}
+          >
+            {menuOpen ? (
+              <Ionicons name="close-outline" size={28} color={colors.black} />
+            ) : (
+              <SimpleLineIcons name="menu" size={18} color={colors.black} />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -164,6 +196,49 @@ const HomeScreen = () => {
           </View>
         </View>
       </ScrollView>
+
+      {menuOpen ? (
+        <View style={styles.mobileMenuOverlay}>
+          <ScrollView
+            style={styles.mobileMenu}
+            contentContainerStyle={styles.mobileMenuContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.mobileMenuSection}>
+              {quickActions.map((item) => (
+                <TouchableOpacity key={item.id} style={styles.mobileMenuRow} activeOpacity={0.82}>
+                  {item.icon ? (
+                    <View style={styles.mobileMenuIconWrap}>
+                      <MenuIcon icon={item.icon} />
+                    </View>
+                  ) : null}
+                  <Text style={[styles.mobileMenuLabel, !item.icon && styles.mobileMenuLabelNoIcon]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.mobileMenuSection}>
+              {menuLinks.map((item) => (
+                <TouchableOpacity key={item} style={styles.mobileMenuRow} activeOpacity={0.82}>
+                  <Text style={styles.mobileNavLabel}>{item}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.deliveryCard} activeOpacity={0.9}>
+              <View style={styles.deliveryIconWrap}>
+                <Feather name="truck" size={18} color={colors.white} />
+              </View>
+              <View>
+                <Text style={styles.deliveryTitle}>EXPRESS DELIVERY</Text>
+                <Text style={styles.deliverySubtitle}>Upgrade Your Delivery Method</Text>
+              </View>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 };
@@ -231,6 +306,80 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: HEADER_HEIGHT,
+  },
+  mobileMenuOverlay: {
+    position: "absolute",
+    top: HEADER_HEIGHT,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 15,
+  },
+  mobileMenu: {
+    backgroundColor: colors.white,
+    flex: 1,
+  },
+  mobileMenuContent: {
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  mobileMenuSection: {
+    borderTopWidth: 1,
+    borderTopColor: "#efefef",
+  },
+  mobileMenuRow: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#efefef",
+  },
+  mobileMenuIconWrap: {
+    width: 32,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginRight: 4,
+  },
+  mobileMenuLabel: {
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "400",
+  },
+  mobileMenuLabelNoIcon: {
+    marginLeft: 0,
+  },
+  mobileNavLabel: {
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "400",
+  },
+  deliveryCard: {
+    marginTop: 16,
+    marginHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: colors.black,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  deliveryIconWrap: {
+    width: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  deliveryTitle: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 16,
+  },
+  deliverySubtitle: {
+    color: "#d2a51d",
+    fontSize: 11,
+    lineHeight: 14,
   },
   heroWrapper: {
     marginTop: -1,
