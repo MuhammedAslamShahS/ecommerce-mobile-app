@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -20,12 +22,21 @@ import { typography } from "../theme/typography";
 const storeLogo = require("../../assets/store-logo.png");
 const FALLBACK_IMAGE = "https://via.placeholder.com/500x640/f5f5f5/999999?text=Product";
 
-const ProductDetailsScreen = ({ productId, bottomInset = 0, onBack }) => {
+const ProductDetailsScreen = ({
+  productId,
+  bottomInset = 0,
+  onBack,
+  onAddToCart,
+  onBuyNow,
+  onOpenCart,
+}) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [product, setProduct] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [showCartPrompt, setShowCartPrompt] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,12 +85,54 @@ const ProductDetailsScreen = ({ productId, bottomInset = 0, onBack }) => {
     return Math.max(originalPrice - product.price, 0);
   }, [originalPrice, product]);
 
+  const availableStock = useMemo(() => Number(product?.stock ?? 0), [product]);
+  const isOutOfStock = availableStock < 1;
+
   const increaseQuantity = () => {
-    setQuantity((current) => current + 1);
+    setQuantity((current) => {
+      if (availableStock < 1) {
+        return current;
+      }
+
+      return Math.min(current + 1, availableStock);
+    });
   };
 
   const decreaseQuantity = () => {
     setQuantity((current) => Math.max(1, current - 1));
+  };
+
+  const handleAddToCart = async () => {
+    if (!product || isOutOfStock || isSubmitting) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await onAddToCart?.(product, quantity);
+      setShowCartPrompt(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!product || isOutOfStock || isSubmitting) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setShowCartPrompt(false);
+      await onBuyNow?.(product, quantity);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoToCart = () => {
+    setShowCartPrompt(false);
+    onOpenCart?.();
   };
 
   return (
@@ -184,19 +237,55 @@ const ProductDetailsScreen = ({ productId, bottomInset = 0, onBack }) => {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.stockText}>Stock Available: {product.stock}</Text>
+              <Text style={styles.stockText}>
+                {isOutOfStock ? "Currently out of stock" : `Stock Available: ${availableStock}`}
+              </Text>
             </View>
 
-            <TouchableOpacity style={styles.outlineCta} activeOpacity={0.9}>
-              <Text style={styles.outlineCtaText}>ADD TO CART</Text>
+            <TouchableOpacity
+              style={[styles.outlineCta, isOutOfStock && styles.disabledOutlineCta]}
+              activeOpacity={0.9}
+              onPress={handleAddToCart}
+              disabled={isOutOfStock || isSubmitting}
+            >
+              <Text style={[styles.outlineCtaText, isOutOfStock && styles.disabledOutlineCtaText]}>
+                {isSubmitting ? "ADDING..." : "ADD TO CART"}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.primaryCta} activeOpacity={0.9}>
-              <Text style={styles.primaryCtaText}>BUY NOW</Text>
+            <TouchableOpacity
+              style={[styles.primaryCta, isOutOfStock && styles.disabledPrimaryCta]}
+              activeOpacity={0.9}
+              onPress={handleBuyNow}
+              disabled={isOutOfStock || isSubmitting}
+            >
+              <Text style={styles.primaryCtaText}>{isOutOfStock ? "OUT OF STOCK" : "BUY NOW"}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={showCartPrompt}
+        onRequestClose={() => setShowCartPrompt(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowCartPrompt(false)}>
+          <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.modalTitle}>Item added to cart</Text>
+            <Text style={styles.modalText}>Choose what you want to do next.</Text>
+
+            <TouchableOpacity style={styles.modalPrimaryAction} activeOpacity={0.9} onPress={handleBuyNow}>
+              <Text style={styles.modalPrimaryActionText}>Proceed to Buy</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.modalSecondaryAction} activeOpacity={0.9} onPress={handleGoToCart}>
+              <Text style={styles.modalSecondaryActionText}>Go to Cart</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -441,6 +530,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
   },
+  disabledOutlineCta: {
+    borderColor: "#f4c8bc",
+    backgroundColor: "#fff7f4",
+  },
+  disabledOutlineCtaText: {
+    color: "#d6a395",
+  },
   primaryCta: {
     marginTop: 14,
     minHeight: 56,
@@ -454,6 +550,68 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     letterSpacing: 0.4,
+  },
+  disabledPrimaryCta: {
+    backgroundColor: "#f0b7aa",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    backgroundColor: colors.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  modalText: {
+    marginTop: 10,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#6b7280",
+  },
+  modalPrimaryAction: {
+    marginTop: 22,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: "#ff5a36",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalPrimaryActionText: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  modalSecondaryAction: {
+    marginTop: 12,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f9fafb",
+  },
+  modalSecondaryActionText: {
+    color: "#111827",
+    fontSize: 17,
+    fontWeight: "600",
   },
 });
 
