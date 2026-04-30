@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from "react";
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "./src/screens/HomeScreen";
 import ProductDetailsScreen from "./src/screens/ProductDetailsScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
+import CartScreen from "./src/screens/CartScreen";
+import OrdersScreen from "./src/screens/OrdersScreen";
+import AccountScreen from "./src/screens/AccountScreen";
 
 const initialAddresses = [
   {
@@ -21,14 +24,19 @@ const initialAddresses = [
   },
 ];
 
+const accountProfile = {
+  name: "Muhammed Aslam",
+  email: "muhammedaslamshahsofficial@gmail.com",
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("Home");
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [cartItems, setCartItems] = useState([]);
-  const [buyNowOrder, setBuyNowOrder] = useState(null);
   const [checkoutState, setCheckoutState] = useState(null);
   const [savedAddresses, setSavedAddresses] = useState(initialAddresses);
   const [selectedAddressId, setSelectedAddressId] = useState(initialAddresses[0]?.id || "");
+  const [placedOrders, setPlacedOrders] = useState([]);
 
   const tabs = useMemo(
     () => [
@@ -39,16 +47,6 @@ export default function App() {
     ],
     []
   );
-
-  const cartSummary = useMemo(() => {
-    const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = cartItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-
-    return {
-      totalItems,
-      subtotal,
-    };
-  }, [cartItems]);
 
   const handleAddToCart = (product, quantity) => {
     setCartItems((currentItems) => {
@@ -80,18 +78,17 @@ export default function App() {
   };
 
   const handleBuyNow = (product, quantity) => {
-    const nextBuyNowOrder = {
+    const nextBuyNowItem = {
       id: product.id,
+      productId: product.id,
       title: product.title,
       price: Number(product.price),
       quantity,
-      total: Number(product.price) * quantity,
     };
 
-    setBuyNowOrder(nextBuyNowOrder);
     setCheckoutState({
       source: "buy-now",
-      items: [nextBuyNowOrder],
+      items: [nextBuyNowItem],
     });
     setSelectedProductId(null);
     setActiveTab("Orders");
@@ -132,6 +129,8 @@ export default function App() {
   };
 
   const handleCancelCheckout = () => {
+    setCheckoutState(null);
+
     if (checkoutState?.source === "cart") {
       setActiveTab("Cart");
       return;
@@ -141,20 +140,72 @@ export default function App() {
   };
 
   const handlePlaceOrder = ({ selectedPayment, selectedAddress }) => {
-    const totalItems = checkoutState?.items?.reduce((sum, item) => sum + Number(item.quantity), 0) || 0;
+    const checkoutItems = checkoutState?.items || [];
+    const totalItems = checkoutItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const orderTotal = checkoutItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0);
 
     if (checkoutState?.source === "cart") {
       setCartItems([]);
     }
 
-    setBuyNowOrder(null);
+    setPlacedOrders((currentOrders) => [
+      {
+        id: `ORD-${Date.now()}`,
+        createdAt: new Date().toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+        status: "PLACED",
+        paymentMethod: selectedPayment,
+        address: selectedAddress,
+        items: checkoutItems,
+        total: orderTotal,
+      },
+      ...currentOrders,
+    ]);
+
     setCheckoutState(null);
-    setActiveTab("Home");
+    setActiveTab("Orders");
 
     Alert.alert(
       "Order placed",
       `${totalItems} item${totalItems > 1 ? "s" : ""} confirmed for ${selectedAddress.fullName} via ${selectedPayment.toUpperCase()}.`
     );
+  };
+
+  const handleIncrementCartItem = (itemId) => {
+    setCartItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              quantity: Math.min(item.quantity + 1, Number(item.stock ?? item.quantity + 1)),
+            }
+          : item
+      )
+    );
+  };
+
+  const handleDecrementCartItem = (itemId) => {
+    setCartItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              quantity: Math.max(1, item.quantity - 1),
+            }
+          : item
+      )
+    );
+  };
+
+  const handleRemoveCartItem = (itemId) => {
+    setCartItems((currentItems) => currentItems.filter((item) => item.id !== itemId));
+  };
+
+  const handleOpenOrders = () => {
+    setActiveTab("Orders");
   };
 
   const renderScreen = () => {
@@ -177,38 +228,14 @@ export default function App() {
 
     if (activeTab === "Cart") {
       return (
-        <SafeAreaView style={styles.summaryScreen}>
-          <ScrollView contentContainerStyle={styles.summaryContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.summaryTitle}>Your Cart</Text>
-            <Text style={styles.summaryCopy}>
-              {cartSummary.totalItems > 0
-                ? `${cartSummary.totalItems} item${cartSummary.totalItems > 1 ? "s" : ""} ready for checkout.`
-                : "Your cart is empty. Add a product from the details page to see it here."}
-            </Text>
-
-            {cartItems.map((item) => (
-              <View key={item.id} style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>{item.title}</Text>
-                <Text style={styles.summaryCardMeta}>Qty: {item.quantity}</Text>
-                <Text style={styles.summaryCardMeta}>Price: Rs. {item.price.toFixed(2)}</Text>
-                <Text style={styles.summaryCardTotal}>Total: Rs. {(item.price * item.quantity).toFixed(2)}</Text>
-              </View>
-            ))}
-
-            {cartSummary.totalItems > 0 ? (
-              <View style={styles.highlightCard}>
-                <Text style={styles.highlightLabel}>Cart Subtotal</Text>
-                <Text style={styles.highlightValue}>Rs. {cartSummary.subtotal.toFixed(2)}</Text>
-              </View>
-            ) : null}
-
-            {cartSummary.totalItems > 0 ? (
-              <TouchableOpacity style={styles.checkoutButton} activeOpacity={0.88} onPress={handleOpenCheckoutFromCart}>
-                <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-              </TouchableOpacity>
-            ) : null}
-          </ScrollView>
-        </SafeAreaView>
+        <CartScreen
+          cartItems={cartItems}
+          onIncrement={handleIncrementCartItem}
+          onDecrement={handleDecrementCartItem}
+          onRemove={handleRemoveCartItem}
+          onProceedCheckout={handleOpenCheckoutFromCart}
+          bottomInset={92}
+        />
       );
     }
 
@@ -228,33 +255,20 @@ export default function App() {
       }
 
       return (
-        <SafeAreaView style={styles.summaryScreen}>
-          <View style={styles.summaryContent}>
-            <Text style={styles.summaryTitle}>Checkout</Text>
-            <Text style={styles.summaryCopy}>
-              {buyNowOrder
-                ? "Your Buy Now selection is ready. Review the order summary below."
-                : "Use Buy Now from a product details page to open a direct checkout flow here."}
-            </Text>
-
-            {buyNowOrder ? (
-              <View style={styles.highlightCard}>
-                <Text style={styles.summaryCardTitle}>{buyNowOrder.title}</Text>
-                <Text style={styles.summaryCardMeta}>Qty: {buyNowOrder.quantity}</Text>
-                <Text style={styles.summaryCardMeta}>Price: Rs. {buyNowOrder.price.toFixed(2)}</Text>
-                <Text style={styles.highlightValue}>Pay Now: Rs. {buyNowOrder.total.toFixed(2)}</Text>
-              </View>
-            ) : null}
-          </View>
-        </SafeAreaView>
+        <OrdersScreen placedOrders={placedOrders} onStartShopping={() => setActiveTab("Home")} bottomInset={92} />
       );
     }
 
     return (
-      <SafeAreaView style={styles.placeholderScreen}>
-        <Text style={styles.placeholderTitle}>{activeTab}</Text>
-        <Text style={styles.placeholderCopy}>This tab is ready for the next mobile app screen.</Text>
-      </SafeAreaView>
+      <AccountScreen
+        profile={accountProfile}
+        savedAddresses={savedAddresses}
+        cartItems={cartItems}
+        placedOrders={placedOrders}
+        onOpenCart={handleOpenCart}
+        onOpenOrders={handleOpenOrders}
+        bottomInset={92}
+      />
     );
   };
 
@@ -298,105 +312,6 @@ const styles = StyleSheet.create({
   appShell: {
     flex: 1,
     backgroundColor: "#eaf5f8",
-  },
-  placeholderScreen: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f8f8f8",
-    paddingHorizontal: 24,
-  },
-  placeholderTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  placeholderCopy: {
-    fontSize: 15,
-    color: "#6b7280",
-    textAlign: "center",
-  },
-  summaryScreen: {
-    flex: 1,
-    backgroundColor: "#f6f8fb",
-  },
-  summaryContent: {
-    paddingHorizontal: 20,
-    paddingTop: 26,
-    paddingBottom: 120,
-  },
-  summaryTitle: {
-    fontSize: 30,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  summaryCopy: {
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#6b7280",
-  },
-  summaryCard: {
-    marginTop: 18,
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  summaryCardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  summaryCardMeta: {
-    marginTop: 8,
-    fontSize: 15,
-    color: "#4b5563",
-  },
-  summaryCardTotal: {
-    marginTop: 12,
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#ff5a36",
-  },
-  highlightCard: {
-    marginTop: 22,
-    borderRadius: 20,
-    padding: 20,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#dbe2ea",
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 4,
-  },
-  highlightLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  highlightValue: {
-    marginTop: 10,
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#111827",
-  },
-  checkoutButton: {
-    marginTop: 18,
-    minHeight: 56,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ff5a36",
-  },
-  checkoutButtonText: {
-    color: "#ffffff",
-    fontSize: 17,
-    fontWeight: "800",
   },
   bottomNav: {
     position: "absolute",
