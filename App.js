@@ -1,15 +1,34 @@
 import React, { useMemo, useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import HomeScreen from "./src/screens/HomeScreen";
 import ProductDetailsScreen from "./src/screens/ProductDetailsScreen";
+import CheckoutScreen from "./src/screens/CheckoutScreen";
+
+const initialAddresses = [
+  {
+    id: "address-1",
+    fullName: "Muhammed Aslam",
+    phone: "+91 98765 43210",
+    line1: "18/404, Market Road",
+    line2: "Near Town Hall",
+    city: "Kozhikode",
+    state: "Kerala",
+    postalCode: "673001",
+    country: "India",
+    isDefault: true,
+  },
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("Home");
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [buyNowOrder, setBuyNowOrder] = useState(null);
+  const [checkoutState, setCheckoutState] = useState(null);
+  const [savedAddresses, setSavedAddresses] = useState(initialAddresses);
+  const [selectedAddressId, setSelectedAddressId] = useState(initialAddresses[0]?.id || "");
 
   const tabs = useMemo(
     () => [
@@ -61,12 +80,18 @@ export default function App() {
   };
 
   const handleBuyNow = (product, quantity) => {
-    setBuyNowOrder({
+    const nextBuyNowOrder = {
       id: product.id,
       title: product.title,
       price: Number(product.price),
       quantity,
       total: Number(product.price) * quantity,
+    };
+
+    setBuyNowOrder(nextBuyNowOrder);
+    setCheckoutState({
+      source: "buy-now",
+      items: [nextBuyNowOrder],
     });
     setSelectedProductId(null);
     setActiveTab("Orders");
@@ -75,6 +100,61 @@ export default function App() {
   const handleOpenCart = () => {
     setSelectedProductId(null);
     setActiveTab("Cart");
+  };
+
+  const handleOpenCheckoutFromCart = () => {
+    if (!cartItems.length) {
+      return;
+    }
+
+    setCheckoutState({
+      source: "cart",
+      items: cartItems.map((item) => ({
+        id: item.id,
+        productId: item.id,
+        title: item.title,
+        price: Number(item.price),
+        quantity: Number(item.quantity),
+      })),
+    });
+    setActiveTab("Orders");
+  };
+
+  const handleAddAddress = (addressForm) => {
+    const nextAddress = {
+      id: `address-${Date.now()}`,
+      ...addressForm,
+      isDefault: savedAddresses.length === 0,
+    };
+
+    setSavedAddresses((currentAddresses) => [...currentAddresses, nextAddress]);
+    setSelectedAddressId(nextAddress.id);
+  };
+
+  const handleCancelCheckout = () => {
+    if (checkoutState?.source === "cart") {
+      setActiveTab("Cart");
+      return;
+    }
+
+    setActiveTab("Home");
+  };
+
+  const handlePlaceOrder = ({ selectedPayment, selectedAddress }) => {
+    const totalItems = checkoutState?.items?.reduce((sum, item) => sum + Number(item.quantity), 0) || 0;
+
+    if (checkoutState?.source === "cart") {
+      setCartItems([]);
+    }
+
+    setBuyNowOrder(null);
+    setCheckoutState(null);
+    setActiveTab("Home");
+
+    Alert.alert(
+      "Order placed",
+      `${totalItems} item${totalItems > 1 ? "s" : ""} confirmed for ${selectedAddress.fullName} via ${selectedPayment.toUpperCase()}.`
+    );
   };
 
   const renderScreen = () => {
@@ -121,12 +201,32 @@ export default function App() {
                 <Text style={styles.highlightValue}>Rs. {cartSummary.subtotal.toFixed(2)}</Text>
               </View>
             ) : null}
+
+            {cartSummary.totalItems > 0 ? (
+              <TouchableOpacity style={styles.checkoutButton} activeOpacity={0.88} onPress={handleOpenCheckoutFromCart}>
+                <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
+              </TouchableOpacity>
+            ) : null}
           </ScrollView>
         </SafeAreaView>
       );
     }
 
     if (activeTab === "Orders") {
+      if (checkoutState?.items?.length) {
+        return (
+          <CheckoutScreen
+            items={checkoutState.items}
+            addresses={savedAddresses}
+            selectedAddressId={selectedAddressId}
+            onSelectAddress={setSelectedAddressId}
+            onAddAddress={handleAddAddress}
+            onPlaceOrder={handlePlaceOrder}
+            onCancel={handleCancelCheckout}
+          />
+        );
+      }
+
       return (
         <SafeAreaView style={styles.summaryScreen}>
           <View style={styles.summaryContent}>
@@ -284,6 +384,19 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "800",
     color: "#111827",
+  },
+  checkoutButton: {
+    marginTop: 18,
+    minHeight: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ff5a36",
+  },
+  checkoutButtonText: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "800",
   },
   bottomNav: {
     position: "absolute",
